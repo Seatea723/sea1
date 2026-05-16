@@ -4,117 +4,265 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>京东 CK 管家</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 <style>
-    :root { --bg: #0f0f23; --card: #1a1a2e; --blue: #4f8cff; --green: #28a745; --red: #dc3545; }
+    :root { --bg: #0f0f23; --card: #1a1a2e; --blue: #4f8cff; --green: #28a745; --red: #dc3545; --yellow: #ffc107; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: #e0e0e0; padding: 15px; line-height: 1.6; }
     .container { max-width: 800px; margin: 0 auto; }
-    h1 { text-align: center; color: #fff; margin-bottom: 20px; font-size: 24px; }
+    h1 { text-align: center; color: #fff; margin-bottom: 20px; font-size: 22px; }
     .card { background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid #333; }
     .section { font-size: 16px; color: #fff; margin: 10px 0; padding-bottom: 8px; border-bottom: 1px solid #333; }
-    input, textarea { width: 100%; padding: 12px; background: #0f0f1a; border: 2px solid #333; border-radius: 8px; color: #e0e0e0; font-size: 16px; margin-bottom: 10px; }
-    button { width: 100%; padding: 14px; background: var(--blue); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+    input, textarea { width: 100%; padding: 12px; background: #0f0f1a; border: 2px solid #333; border-radius: 8px; color: #e0e0e0; font-size: 16px; margin-bottom: 10px; font-family: monospace; }
+    textarea { min-height: 120px; resize: vertical; }
+    button { width: 100%; padding: 14px; background: var(--blue); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; margin-bottom: 10px; transition: opacity 0.2s; }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
     button.green { background: var(--green); }
     button.red { background: var(--red); }
-    .ck-item { background: #0f0f1a; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #333; word-break: break-all; }
-    .ck-item.valid { border-left-color: var(--green); }
-    .ck-item.invalid { border-left-color: var(--red); }
-    .status { padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 14px; text-align: center; }
-    .success { background: rgba(40,167,69,0.2); color: #28a745; }
-    .error { background: rgba(220,53,69,0.2); color: #dc3545; }
+    button.yellow { background: var(--yellow); color: #000; }
+    .status { padding: 12px; border-radius: 8px; margin: 10px 0; font-size: 14px; text-align: center; line-height: 1.5; }
+    .success { background: rgba(40,167,69,0.2); color: #28a745; border: 1px solid #28a745; }
+    .error { background: rgba(220,53,69,0.2); color: #dc3545; border: 1px solid #dc3545; }
+    .info { background: rgba(79,140,255,0.2); color: #4f8cff; border: 1px solid #4f8cff; }
+    .warning { background: rgba(255,193,7,0.2); color: #ffc107; border: 1px solid #ffc107; }
+    .ck-item { background: #0f0f1a; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--green); }
+    .ck-item .pin { font-weight: bold; color: #fff; margin-bottom: 5px; }
+    .ck-item .val { font-size: 12px; color: #888; word-break: break-all; }
+    .help { font-size: 13px; color: #888; margin-top: 8px; }
+    .progress { display: none; padding: 10px; background: rgba(79,140,255,0.1); border-radius: 8px; margin: 10px 0; text-align: center; }
 </style>
 </head>
 <body>
 <div class="container">
     <h1>🛡️ 京东 CK 管家</h1>
     
+    <!-- 青龙配置 -->
     <div class="card">
-        <div class="section">🚀 青龙面板</div>
-        <input id="qlUrl" value="http://138.2.58.56:9612/" placeholder="青龙地址">
+        <div class="section">🚀 青龙面板配置</div>
+        <input id="qlUrl" value="http://138.2.58.56:9612/" placeholder="青龙地址（如 http://ip:9612/）">
         <input id="qlClientId" value="aKpk-W8nQbbT" placeholder="Client ID">
-        <input id="qlClientSecret" value="aQxOdixc9olQWitqve4KIx_1" placeholder="Client Secret" type="password">
-        <button class="green" onclick="testQL()">测试连接</button>
+        <input id="qlClientSecret" type="password" value="aQxOdixc9olQWitqve4KIx_1" placeholder="Client Secret">
+        <button class="green" onclick="testQL()" id="btnTest">测试连接</button>
         <div id="qlStatus"></div>
     </div>
 
+    <!-- CK 添加区 -->
     <div class="card">
-        <div class="section">➕ 添加 CK</div>
-        <textarea id="ckInput" rows="4" placeholder="粘贴 pt_pin=xxx;pt_key=yyy;"></textarea>
-        <button onclick="addCK()">添加 CK</button>
-        <button class="green" onclick="pushToQL()">推送到青龙</button>
+        <div class="section">➕ 添加 Cookie</div>
+        <textarea id="ckInput" placeholder="粘贴京东 Cookie，支持两种格式：&#10;1. pt_pin=xxx;pt_key=yyy;&#10;2. 完整 Set-Cookie 格式&#10;&#10;多个账号用换行分隔"></textarea>
+        <button onclick="addCK()" id="btnAdd">添加 CK</button>
+        <div class="help">💡 提示：手机京东 App → 我的 → 右上角设置 → 账号与安全 → 复制 Cookie</div>
     </div>
 
+    <!-- CK 列表 -->
     <div class="card">
         <div class="section">📋 CK 列表 (<span id="ckCount">0</span>)</div>
-        <div id="ckList"></div>
+        <div id="ckList"><div style="text-align:center;color:#666;padding:20px;">暂无 CK，请添加</div></div>
+        <button class="green" onclick="pushToQL()" id="btnPush">推送到青龙</button>
+        <button class="red" onclick="clearAll()">清空全部</button>
+        <div class="progress" id="progress"></div>
     </div>
 </div>
 
 <script>
 let cks = [];
+let token = null;
 
+// 解析 Cookie
+function parseCK(text) {
+    text = text.trim();
+    const results = [];
+    
+    // 尝试提取 pt_pin 和 pt_key
+    const pinMatch = text.match(/pt_pin=([^;\s]+)/);
+    const keyMatch = text.match(/pt_key=([^;\s]+)/);
+    
+    if (pinMatch && keyMatch) {
+        results.push({
+            name: pinMatch[1],
+            value: `pt_pin=${pinMatch[1]};pt_key=${keyMatch[1]};`
+        });
+    }
+    return results;
+}
+
+// 添加 CK
 function addCK() {
     const text = document.getElementById('ckInput').value.trim();
-    const pin = text.match(/pt_pin=([^;]+)/);
-    const key = text.match(/pt_key=([^;]+)/);
-    if (!pin || !key) { alert('❌ CK 格式错误'); return; }
-    cks.push({ name: pin[1], value: `pt_pin=${pin[1]};pt_key=${key[1]};` });
+    if (!text) { showStatus('请输入 Cookie', 'error'); return; }
+    
+    let added = 0;
+    const lines = text.split('\n');
+    
+    for (const line of lines) {
+        const parsed = parseCK(line);
+        if (parsed.length > 0) {
+            for (const ck of parsed) {
+                // 检查是否已存在
+                if (!cks.find(c => c.name === ck.name)) {
+                    cks.push(ck);
+                    added++;
+                }
+            }
+        }
+    }
+    
+    if (added === 0) {
+        showStatus('❌ 未识别到有效 CK（需包含 pt_pin 和 pt_key）', 'error');
+        return;
+    }
+    
     document.getElementById('ckInput').value = '';
+    render();
+    showStatus(`✅ 成功添加 ${added} 个 CK`, 'success');
+}
+
+// 渲染 CK 列表
+function render() {
+    const list = document.getElementById('ckList');
+    if (cks.length === 0) {
+        list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">暂无 CK，请添加</div>';
+    } else {
+        list.innerHTML = '';
+        cks.forEach((ck, idx) => {
+            list.innerHTML += `
+                <div class="ck-item">
+                    <div class="pin">${idx + 1}. ${ck.name}</div>
+                    <div class="val">${ck.value}</div>
+                    <button class="red" style="margin-top:8px;padding:8px;font-size:14px;" onclick="removeCK(${idx})">删除</button>
+                </div>
+            `;
+        });
+    }
+    document.getElementById('ckCount').innerText = cks.length;
+    document.getElementById('btnPush').disabled = cks.length === 0;
+}
+
+// 删除单个 CK
+function removeCK(idx) {
+    cks.splice(idx, 1);
     render();
 }
 
-function render() {
-    const list = document.getElementById('ckList');
-    list.innerHTML = '';
-    cks.forEach(ck => {
-        list.innerHTML += `<div class="ck-item">${ck.name}<br><small>${ck.value}</small></div>`;
-    });
-    document.getElementById('ckCount').innerText = cks.length;
+// 清空全部
+function clearAll() {
+    if (cks.length === 0) return;
+    if (!confirm('确定清空所有 CK 吗？')) return;
+    cks = [];
+    render();
+    showStatus('已清空', 'info');
 }
 
+// 测试青龙连接
 async function testQL() {
-    const url = document.getElementById('qlUrl').value;
-    const clientId = document.getElementById('qlClientId').value;
-    const clientSecret = document.getElementById('qlClientSecret').value;
-    const statusDiv = document.getElementById('qlStatus');
+    const btn = document.getElementById('btnTest');
+    btn.disabled = true;
+    btn.innerText = '测试中...';
     
     try {
-        const resp = await fetch(`${url}/open/auth/token?client_id=${clientId}&client_secret=${clientSecret}`);
+        const url = document.getElementById('qlUrl').value.replace(/\/$/, '');
+        const clientId = document.getElementById('qlClientId').value.trim();
+        const clientSecret = document.getElementById('qlClientSecret').value.trim();
+        
+        if (!clientId || !clientSecret) {
+            showQLStatus('❌ 请填写 Client ID 和 Secret', 'error');
+            return;
+        }
+        
+        const resp = await fetch(`${url}/open/auth/token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`);
         const data = await resp.json();
+        
         if (data.code === 200) {
-            statusDiv.innerHTML = '<div class="status success">✅ 连接成功</div>';
+            token = data.data.token;
+            showQLStatus('✅ 连接成功！Token 有效期至 ' + new Date(data.data.expiration * 1000).toLocaleString(), 'success');
         } else {
-            statusDiv.innerHTML = '<div class="status error">❌ ' + data.message + '</div>';
+            showQLStatus('❌ ' + (data.message || '连接失败'), 'error');
+            token = null;
         }
     } catch (e) {
-        statusDiv.innerHTML = '<div class="status error">❌ 连接失败：' + e.message + '</div>';
+        showQLStatus('❌ 连接失败：' + e.message, 'error');
+        token = null;
+    } finally {
+        btn.disabled = false;
+        btn.innerText = '测试连接';
     }
 }
 
+// 推送到青龙
 async function pushToQL() {
-    if (cks.length === 0) { alert('请先添加 CK'); return; }
-    const token = await getToken();
-    if (!token) return;
-
-    for (const ck of cks) {
-        await fetch(`${document.getElementById('qlUrl').value}/open/envs`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ name: 'JD_COOKIE', value: ck.value })
-        });
+    if (cks.length === 0) { showStatus('请先添加 CK', 'error'); return; }
+    
+    // 确保有 token
+    if (!token) {
+        await testQL();
+        if (!token) return;
     }
-    alert('✅ 推送完成');
+    
+    const btn = document.getElementById('btnPush');
+    const progress = document.getElementById('progress');
+    btn.disabled = true;
+    progress.style.display = 'block';
+    progress.innerText = '正在推送...';
+    
+    const url = document.getElementById('qlUrl').value.replace(/\/$/, '');
+    let success = 0;
+    let fail = 0;
+    
+    for (let i = 0; i < cks.length; i++) {
+        progress.innerText = `正在推送 ${i + 1}/${cks.length}...`;
+        try {
+            const resp = await fetch(`${url}/open/envs`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ 
+                    name: 'JD_COOKIE', 
+                    value: cks[i].value,
+                    remarks: `JDCK_${cks[i].name}`
+                })
+            });
+            const data = await resp.json();
+            if (data.code === 200) {
+                success++;
+            } else {
+                fail++;
+                console.error(`添加 ${cks[i].name} 失败:`, data);
+            }
+        } catch (e) {
+            fail++;
+            console.error(`添加 ${cks[i].name} 异常:`, e);
+        }
+        // 稍微延迟，避免请求过快
+        await new Promise(r => setTimeout(r, 300));
+    }
+    
+    progress.style.display = 'none';
+    btn.disabled = false;
+    
+    if (fail === 0) {
+        showStatus(`✅ 全部推送成功！共 ${success} 个环境变量`, 'success');
+    } else {
+        showStatus(`⚠️ 推送完成：成功 ${success} 个，失败 ${fail} 个`, 'warning');
+    }
 }
 
-async function getToken() {
-    const url = document.getElementById('qlUrl').value;
-    const clientId = document.getElementById('qlClientId').value;
-    const clientSecret = document.getElementById('qlClientSecret').value;
-    const resp = await fetch(`${url}/open/auth/token?client_id=${clientId}&client_secret=${clientSecret}`);
-    const data = await resp.json();
-    return data.code === 200 ? data.data.token : null;
+// 显示状态
+function showStatus(msg, type) {
+    const div = document.createElement('div');
+    div.className = `status ${type}`;
+    div.innerText = msg;
+    document.querySelector('.container').appendChild(div);
+    setTimeout(() => div.remove(), 5000);
 }
+
+function showQLStatus(msg, type) {
+    document.getElementById('qlStatus').innerHTML = `<div class="status ${type}">${msg}</div>`;
+}
+
+// 初始化
+render();
 </script>
 </body>
 </html>
