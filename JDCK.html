@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>京东 CK 管家</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<style>
+    :root { --bg: #0f0f23; --card: #1a1a2e; --blue: #4f8cff; --green: #28a745; --red: #dc3545; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: #e0e0e0; padding: 15px; line-height: 1.6; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; color: #fff; margin-bottom: 20px; font-size: 24px; }
+    .card { background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid #333; }
+    .section { font-size: 16px; color: #fff; margin: 10px 0; padding-bottom: 8px; border-bottom: 1px solid #333; }
+    input, textarea { width: 100%; padding: 12px; background: #0f0f1a; border: 2px solid #333; border-radius: 8px; color: #e0e0e0; font-size: 16px; margin-bottom: 10px; }
+    button { width: 100%; padding: 14px; background: var(--blue); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+    button.green { background: var(--green); }
+    button.red { background: var(--red); }
+    .ck-item { background: #0f0f1a; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #333; word-break: break-all; }
+    .ck-item.valid { border-left-color: var(--green); }
+    .ck-item.invalid { border-left-color: var(--red); }
+    .status { padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 14px; text-align: center; }
+    .success { background: rgba(40,167,69,0.2); color: #28a745; }
+    .error { background: rgba(220,53,69,0.2); color: #dc3545; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>🛡️ 京东 CK 管家</h1>
+    
+    <div class="card">
+        <div class="section">🚀 青龙面板</div>
+        <input id="qlUrl" value="http://138.2.58.56:9612/" placeholder="青龙地址">
+        <input id="qlClientId" value="aKpk-W8nQbbT" placeholder="Client ID">
+        <input id="qlClientSecret" value="aQxOdixc9olQWitqve4KIx_1" placeholder="Client Secret" type="password">
+        <button class="green" onclick="testQL()">测试连接</button>
+        <div id="qlStatus"></div>
+    </div>
+
+    <div class="card">
+        <div class="section">➕ 添加 CK</div>
+        <textarea id="ckInput" rows="4" placeholder="粘贴 pt_pin=xxx;pt_key=yyy;"></textarea>
+        <button onclick="addCK()">添加 CK</button>
+        <button class="green" onclick="pushToQL()">推送到青龙</button>
+    </div>
+
+    <div class="card">
+        <div class="section">📋 CK 列表 (<span id="ckCount">0</span>)</div>
+        <div id="ckList"></div>
+    </div>
+</div>
+
+<script>
+let cks = [];
+
+function addCK() {
+    const text = document.getElementById('ckInput').value.trim();
+    const pin = text.match(/pt_pin=([^;]+)/);
+    const key = text.match(/pt_key=([^;]+)/);
+    if (!pin || !key) { alert('❌ CK 格式错误'); return; }
+    cks.push({ name: pin[1], value: `pt_pin=${pin[1]};pt_key=${key[1]};` });
+    document.getElementById('ckInput').value = '';
+    render();
+}
+
+function render() {
+    const list = document.getElementById('ckList');
+    list.innerHTML = '';
+    cks.forEach(ck => {
+        list.innerHTML += `<div class="ck-item">${ck.name}<br><small>${ck.value}</small></div>`;
+    });
+    document.getElementById('ckCount').innerText = cks.length;
+}
+
+async function testQL() {
+    const url = document.getElementById('qlUrl').value;
+    const clientId = document.getElementById('qlClientId').value;
+    const clientSecret = document.getElementById('qlClientSecret').value;
+    const statusDiv = document.getElementById('qlStatus');
+    
+    try {
+        const resp = await fetch(`${url}/open/auth/token?client_id=${clientId}&client_secret=${clientSecret}`);
+        const data = await resp.json();
+        if (data.code === 200) {
+            statusDiv.innerHTML = '<div class="status success">✅ 连接成功</div>';
+        } else {
+            statusDiv.innerHTML = '<div class="status error">❌ ' + data.message + '</div>';
+        }
+    } catch (e) {
+        statusDiv.innerHTML = '<div class="status error">❌ 连接失败：' + e.message + '</div>';
+    }
+}
+
+async function pushToQL() {
+    if (cks.length === 0) { alert('请先添加 CK'); return; }
+    const token = await getToken();
+    if (!token) return;
+
+    for (const ck of cks) {
+        await fetch(`${document.getElementById('qlUrl').value}/open/envs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ name: 'JD_COOKIE', value: ck.value })
+        });
+    }
+    alert('✅ 推送完成');
+}
+
+async function getToken() {
+    const url = document.getElementById('qlUrl').value;
+    const clientId = document.getElementById('qlClientId').value;
+    const clientSecret = document.getElementById('qlClientSecret').value;
+    const resp = await fetch(`${url}/open/auth/token?client_id=${clientId}&client_secret=${clientSecret}`);
+    const data = await resp.json();
+    return data.code === 200 ? data.data.token : null;
+}
+</script>
+</body>
+</html>
